@@ -2,4 +2,3 @@ data/
 obj/
 bin/
 test/
-Makefile
