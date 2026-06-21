@@ -143,7 +143,24 @@ dataTable *readCSVToDataTable(FILE *src)
         for (int col = 0; col < dataCols; ++col)
         {
             double value = strtod(ptr, &endPtr);
-            result->elements[col]->data[row] = value;
+
+            // when strtod fails, it doesn't move the ptr
+            if (ptr == endPtr) 
+            {
+                result->elements[col]->data[row] = NAN; 
+            }
+
+            // strtod success
+            else 
+            {
+                result->elements[col]->data[row] = value;
+            }
+
+            // skip through dirty data
+            while (*endPtr != ',' && *endPtr != '\0' && *endPtr != '\n' && *endPtr != '\r')
+            {
+                endPtr++;
+            }
             ptr = endPtr + (*endPtr == ',');
         }
         row++;
@@ -172,4 +189,48 @@ void destroyDataTable(dataTable *dt)
         free(dt->elements);
     }
     free(dt);
+}
+
+bool writeDataTableToCSV(const dataTable *data, FILE *dst)
+{
+    if (data == NULL || dst == NULL)
+    {
+        printf("Error: Cannot write from and to NULL!\n");
+        return false;
+    }
+    else if (data->headers == NULL || data->cols <= 0)
+    {
+        printf("Error: Invalid dataTable!\n");
+        return false;
+    }
+
+    int dataRows = data->rows;
+    int dataCols = data->cols;
+    
+    // write headers
+    for (int col = 0; col < dataCols; ++col)
+    {
+        if (col > 0)
+        {
+            fputc(',', dst);
+        }
+        fprintf(dst, "%s", data->headers[col]);
+    }
+    fputc('\n', dst);
+
+    // write data
+    for (int row = 0; row < dataRows; ++row)
+    {
+        for (int col = 0; col < dataCols; ++col)
+        {
+            double value = data->elements[col]->data[row];
+            if (col > 0)
+            {
+                fputc(',', dst);
+            }
+            fprintf(dst, "%g", value);
+        }
+        fputc('\n', dst);
+    }
+    return true;
 }
