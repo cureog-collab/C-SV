@@ -191,21 +191,21 @@ void destroyDataTable(dataTable *dt)
     free(dt);
 }
 
-bool writeDataTableToCSV(const dataTable *data, FILE *dst)
+bool writeDataTableToCSV(const dataTable *dt, FILE *dst)
 {
-    if (data == NULL || dst == NULL)
+    if (dt == NULL || dst == NULL)
     {
         printf("Error: Cannot write from and to NULL!\n");
         return false;
     }
-    else if (data->headers == NULL || data->cols <= 0)
+    else if (dt->headers == NULL || dt->cols <= 0)
     {
         printf("Error: Invalid dataTable!\n");
         return false;
     }
 
-    int dataRows = data->rows;
-    int dataCols = data->cols;
+    int dataRows = dt->rows;
+    int dataCols = dt->cols;
     
     // write headers
     for (int col = 0; col < dataCols; ++col)
@@ -214,7 +214,7 @@ bool writeDataTableToCSV(const dataTable *data, FILE *dst)
         {
             fputc(',', dst);
         }
-        fprintf(dst, "%s", data->headers[col]);
+        fprintf(dst, "%s", dt->headers[col]);
     }
     fputc('\n', dst);
 
@@ -223,7 +223,7 @@ bool writeDataTableToCSV(const dataTable *data, FILE *dst)
     {
         for (int col = 0; col < dataCols; ++col)
         {
-            double value = data->elements[col]->data[row];
+            double value = dt->elements[col]->data[row];
             if (col > 0)
             {
                 fputc(',', dst);
