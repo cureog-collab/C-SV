@@ -1,6 +1,8 @@
 #include "../include/C_SV.h"
-#include <math.h>
-#include <stdlib.h>
+
+// there will be some copy-and-paste codes in here, but I think
+// sometimes they are better than breaking up codes into helper functions
+// in terms of performance (I could very be wrong).
 
 typedef struct {
     double dist;
@@ -367,10 +369,205 @@ bool dataTable_imputeMissingInPlace(dataTable *dt, size_t targetCol, imputeStrat
 }
 
 // normalize numeric range
-bool dataTable_normalizeNumericInPlace(dataTable *dt, size_t targetCol, normalizeStrategy strat); // TODO
+bool dataTable_normalizeNumericInPlace(dataTable *dt, size_t targetCol, normalizeStrategy strat)
+{
+    if (dt == NULL)
+    {
+        printf("Error: Cannot normalize NULL!\n");
+        return false;
+    }
+    if ((int)targetCol >= dt->cols)
+    {
+        printf("Error: Invalid targetCol index!\n");
+        return false;
+    }
+    int dataRows = dt->rows;
+    double *dataPtr = dt->elements[targetCol]->data;
+
+    switch (strat)
+    {
+        case SCALE_MINMAX:
+        {
+            // find max and min
+            double currMax = dataPtr[0];
+            double currMin = dataPtr[0];
+            for (int row = 1; row < dataRows; ++row)
+            {
+                if (dataPtr[row] > currMax)
+                {
+                    currMax = dataPtr[row];
+                    continue;
+                }
+                else if (dataPtr[row] < currMin)
+                {
+                    currMin = dataPtr[row];
+                    continue;
+                }
+            }
+            double max = currMax;
+            double min = currMin;
+
+            // check extreme cases
+            if (max == min)
+            {
+                printf("Warning: All data in col %zu is equal! Nothing to scale.\n", targetCol);
+                for (int row = 0; row < dataRows; ++row)
+                {
+                    dataPtr[row] = 0;
+                }
+                break;
+            }
+
+            double invRange = 1.0 / (max - min);
+
+            for (int row = 0; row < dataRows; ++row)
+            {
+                dataPtr[row] = (dataPtr[row] - min) * invRange;
+            }
+
+            break;
+        }
+
+        case SCALE_BOX:
+        {
+            // find Q2, Q1, Q3
+            // min -- 25% -- Q1 -- 25% -- Q2 (median) -- 25% -- Q3 -- max
+
+            // sort data
+            double *buffer = malloc(dataRows * sizeof(double));
+            if (buffer == NULL)
+            {
+                printf("Error: Failed to malloc for buffer!\n");
+                break;
+            }
+            memcpy(buffer, dataPtr, dataRows * sizeof(double));
+            qsort(buffer, dataRows, sizeof(double), cmpDouble);
+
+            double Q1, Q2, Q3;
+            int mid = dataRows >> 1;
+            if (dataRows & 1)
+            {
+                Q2 = buffer[mid];
+            }
+            else
+            {
+                Q2 = (buffer[mid] + buffer[mid - 1]) / 2.0;
+            }
+
+            int upStart = dataRows - mid;
+            if (mid & 1)
+            {
+                Q1 = buffer[mid >> 1];
+                Q3 = buffer[upStart + (mid >> 1)];
+            }
+            else  
+            {
+                Q1 = (buffer[mid >> 1] + buffer[(mid >> 1) - 1]) / 2.0;
+                Q3 = (buffer[upStart + (mid >> 1)] + buffer[upStart - 1 + (mid >> 1)]) / 2.0;
+            }
+
+            free(buffer);
+            
+            if (Q3 == Q1)
+            {
+                printf("Warning: IQR is 0 in col %zu!\n", targetCol);
+                for (int row = 0; row < dataRows; ++row)
+                {
+                    dataPtr[row] = 0;
+                }
+                break;
+            }
+
+            double invIQR = 1.0 / (Q3 - Q1);
+            for (int row = 0; row < dataRows; ++row)
+            {
+                dataPtr[row] = (dataPtr[row] - Q2) * invIQR;
+            }
+
+            break;
+        }
+
+        case SCALE_STANDARD:
+        {
+            double invDataRows = 1.0 / dataRows;
+            // find mu
+            double sum = dataPtr[0];
+            for (int row = 1; row < dataRows; ++row)
+            {
+                sum += dataPtr[row];
+            }
+            double mean = sum * invDataRows;
+
+            // find sigma
+            double squaredSum = 0;
+            for (int row = 0; row < dataRows; ++row)
+            {
+                squaredSum += (dataPtr[row] - mean) * (dataPtr[row] - mean);
+            }
+
+            // check extreme cases
+            if (squaredSum == 0)
+            {
+                printf("Warning: All data in col %zu is equal! Nothing to scale.\n", targetCol);
+                for (int row = 0; row < dataRows; ++row)
+                {
+                    dataPtr[row] = 0;
+                }
+                break;
+            }
+
+            double invDeviation = 1.0 / sqrt(squaredSum * invDataRows);
+
+            // scale
+            for (int row = 0; row < dataRows; ++row)
+            {
+                dataPtr[row] = (dataPtr[row] - mean) * invDeviation;
+            }
+
+            break;
+        }
+    }    
+
+    return true;
+}
 
 // remove extreme outliers user z-scores
-bool dataTable_clipOutliersInPlace(dataTable *dt, size_t targetCol, double zScoreThreshold); // TODO
+bool dataTable_capOutliersInPlace(dataTable *dt, size_t targetCol, double threshold, capStrategy strat)
+{
+    if (dt == NULL)
+    {
+        printf("Error: Cannot clip outliers in NULL!\n");
+        return false;
+    }
+    if ((int)targetCol > dt->cols)
+    {
+        printf("Error: Invalid targetCol!\n");
+        return false;
+    }
+    int dataRows = dt->rows;
+    int dataCols = dt->cols;
+    double *dataPtr = dt->elements[targetCol]->data;
+
+    switch (strat)
+    {    
+        case CAP_IQR:
+        {
+            break;
+        }
+
+        case CAP_NORMAL:
+        {
+            break;
+        }
+
+        case CAP_PERCENTILE:
+        {
+            break;
+        }
+    }
+
+    return true;
+}
 
 // put cotinuous data into buckets
 bool dataTable_bucketizeInPlace(dataTable *dt, size_t targetCol, int numBins); // TODO

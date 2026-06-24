@@ -24,8 +24,14 @@ typedef enum {
 typedef enum {
     SCALE_MINMAX = 1,
     SCALE_STANDARD = 2,
-    SCALE_ROBUST = 3
+    SCALE_BOX = 3
 } normalizeStrategy;
+
+typedef enum {
+    CAP_NORMAL = 1,
+    CAP_IQR = 2,
+    CAP_PERCENTILE = 3
+} capStrategy;
 
 // ============================================================================
 // MEMORY
@@ -39,9 +45,12 @@ void destroyDataTable(dataTable *dt);
 // ============================================================================
 bool dataTable_dropSpoiledRowsInPlace(dataTable *dt, float missingThreshold);
 bool dataTable_dropColInPlace(dataTable *dt, size_t targetCol);
-bool dataTable_imputeMissingInPlace(dataTable *dt, size_t targetCol, imputeStrategy strat); // TODO
-bool dataTable_normalizeNumericInPlace(dataTable *dt, size_t targetCol, normalizeStrategy strat); // TODO
-bool dataTable_clipOutliersInPlace(dataTable *dt, size_t targetCol, double zScoreThreshold); // TODO
+bool dataTable_imputeMissingInPlace(dataTable *dt, size_t targetCol, imputeStrategy strat);
+
+// after the imputing process, there should be no NAN in the data table
+
+bool dataTable_normalizeNumericInPlace(dataTable *dt, size_t targetCol, normalizeStrategy strat);
+bool dataTable_capOutliersInPlace(dataTable *dt, size_t targetCol, double threshold, capStrategy strat); // TODO
 bool dataTable_bucketizeInPlace(dataTable *dt, size_t targetCol, int numBins); // TODO
 bool dataTable_polynomialExpandInPlace(dataTable *dt, size_t targetCol, int degree); // TODO
 bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2); // TODO
