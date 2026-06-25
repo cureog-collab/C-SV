@@ -1,7 +1,10 @@
 #include "../include/C_SV.h"
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
-// there will be some copy-and-paste codes in here, but I think
-// sometimes they are better than breaking up codes into helper functions
+// there will be some copy-and-paste code in here, but I think
+// sometimes they are better than breaking up sections into helper functions
 // in terms of performance (I could very be wrong).
 
 typedef struct {
@@ -539,29 +542,141 @@ bool dataTable_capOutliersInPlace(dataTable *dt, size_t targetCol, double thresh
         printf("Error: Cannot clip outliers in NULL!\n");
         return false;
     }
-    if ((int)targetCol > dt->cols)
+    if ((int)targetCol >= dt->cols)
     {
         printf("Error: Invalid targetCol!\n");
         return false;
     }
     int dataRows = dt->rows;
-    int dataCols = dt->cols;
     double *dataPtr = dt->elements[targetCol]->data;
 
     switch (strat)
     {    
         case CAP_IQR:
         {
+            double *buffer = malloc(dataRows * sizeof(double));
+            if (buffer == NULL)
+            {
+                printf("Error: Failed to malloc for buffer!\n");
+                break;
+            }
+            memcpy(buffer, dataPtr, dataRows * sizeof(double));
+            qsort(buffer, dataRows, sizeof(double), cmpDouble);
+
+            double Q1, Q3;
+            int mid = dataRows >> 1;
+
+            int upStart = dataRows - mid;
+            if (mid & 1)
+            {
+                Q1 = buffer[mid >> 1];
+                Q3 = buffer[upStart + (mid >> 1)];
+            }
+            else
+            {
+                Q1 = (buffer[mid >> 1] + buffer[(mid >> 1) - 1]) / 2.0;
+                Q3 = (buffer[upStart + (mid >> 1)] + buffer[upStart - 1 + (mid >> 1)]) / 2.0;
+            }
+
+            free(buffer);
+
+            double IQR = Q3 - Q1;
+            double lowerBound = Q1 - threshold * IQR;
+            double upperBound = Q3 + threshold * IQR;
+
+            for (int row = 0; row < dataRows; ++row)
+            {
+                if (dataPtr[row] < lowerBound)
+                {
+                    dataPtr[row] = lowerBound;
+                }
+                else if (dataPtr[row] > upperBound)
+                {
+                    dataPtr[row] = upperBound;
+                }
+            }
             break;
         }
 
         case CAP_NORMAL:
         {
+            double invDataRows = 1.0 / dataRows;
+            // find mu
+            double sum = dataPtr[0];
+            for (int row = 1; row < dataRows; ++row)
+            {
+                sum += dataPtr[row];
+            }
+            double mean = sum * invDataRows;
+
+            // find sigma
+            double squaredSum = 0;
+            for (int row = 0; row < dataRows; ++row)
+            {
+                squaredSum += (dataPtr[row] - mean) * (dataPtr[row] - mean);
+            }
+
+            // check extreme cases
+            if (squaredSum == 0)
+            {
+                printf("Warning: All data in col %zu is equal! No outliers to cap.\n", targetCol);
+                break;
+            }
+
+            double deviation = sqrt(squaredSum * invDataRows);
+
+            double lowerBound = mean - threshold * deviation;
+            double upperBound = mean + threshold * deviation;
+
+            for (int row = 0; row < dataRows; ++row)
+            {
+                if (dataPtr[row] < lowerBound)
+                {
+                    dataPtr[row] = lowerBound;
+                }
+                else if (dataPtr[row] > upperBound)
+                {
+                    dataPtr[row] = upperBound;
+                }
+            }
+
             break;
         }
 
         case CAP_PERCENTILE:
         {
+            if (threshold > 0.5)
+            {
+                printf("Error: Threshold for winsorization must be smaller than 50%%!\n");
+                break;
+            }
+
+            double *buffer = malloc(dataRows * sizeof(double));
+            if (buffer == NULL)
+            {
+                printf("Error: Failed to malloc for buffer!\n");
+                break;
+            }
+            memcpy(buffer, dataPtr, dataRows * sizeof(double));
+            qsort(buffer, dataRows, sizeof(double), cmpDouble);
+
+            double lowerBound = buffer[(int)(dataRows * threshold)];
+            double upperBound = buffer[(int)(dataRows * (1.0 - threshold)) - 1];
+
+            free(buffer);
+
+            for (int row = 0; row < dataRows; ++row)
+            {
+                if (dataPtr[row] < lowerBound)
+                {
+                    dataPtr[row] = lowerBound;
+                }
+                else if (dataPtr[row] > upperBound)
+                {
+                    dataPtr[row] = upperBound;
+                }
+            }
+
             break;
         }
     }
@@ -570,13 +685,226 @@ bool dataTable_capOutliersInPlace(dataTable *dt, size_t targetCol, double thresh
 }
 
 // put cotinuous data into buckets
-bool dataTable_bucketizeInPlace(dataTable *dt, size_t targetCol, int numBins); // TODO
+bool dataTable_uniformBucketizeInPlace(dataTable *dt, size_t targetCol, int numBins)
+{
+    if (dt == NULL)
+    {
+        printf("Error: Cannot bucketize NULL!\n");
+        return false;
+    }
+    if ((int)targetCol >= dt->cols)
+    {
+        printf("Error: Invalid targetCol!\n");
+        return false;
+    }
+    if (numBins == 0)
+    {
+        printf("Error: Number of bins must be a finite integer!\n");
+        return false;
+    }
+    int dataRows = dt->rows;
+    double *dataPtr = dt->elements[targetCol]->data;
+
+    // find max and min values
+    double max = dataPtr[0];
+    double min = dataPtr[0];
+    for (int row = 0; row < dataRows; ++row)
+    {
+        if (dataPtr[row] > max)
+        {
+            max = dataPtr[row];
+        }
+        else if (dataPtr[row] < min)
+        {
+            min = dataPtr[row];
+        }
+    }
+
+    if (max == min)
+    {
+        printf("Warning: All data in col %zu is equal! Putting all in bin 0.\n", targetCol);
+        for (int row = 0; row < dataRows; ++row)
+        {
+            dataPtr[row] = 0;
+        }
+        return true;
+    }
+
+    // distance between consecutive bins
+    double invBinGap = numBins / (max - min);
+
+    for (int row = 0; row < dataRows; ++row)
+    {
+        double value = dataPtr[row];
+        int binIdx = (int)((value - min) * invBinGap);
+
+        if (binIdx >= numBins)
+        {
+            binIdx = numBins - 1;
+        }
+
+        dataPtr[row] = (double)binIdx;
+    }
+
+    return true;
+}
+
+bool dataTable_expandColumnInPlace(dataTable *dt, size_t sourceCol, double (*function)(double), char *newHeader)
+{
+    if (dt == NULL)
+    {
+        printf("Error: Cannot expand NULL!\n");
+        return false;
+    }
+    if ((int)sourceCol >= dt->cols)
+    {
+        printf("Error: Invalid source col!\n");
+        return false;
+    }
+    if (function == NULL)
+    {
+        printf("Error: Please input a valid function!\n");
+        return false;
+    }
+
+    char finalNewHeader[128];
+    if (newHeader == NULL)
+    {
+        printf("Warning: Input newHeader is NULL, setting it to \"col_%i\".", dt->cols);
+        snprintf(finalNewHeader, sizeof(finalNewHeader), "col_%i", dt->cols);
+    }
+    else
+    {
+        strcpy(finalNewHeader, newHeader);
+    }
+    
+    int dataRows = dt->rows;
+    int dataCols = dt->cols;
+    double *srcDataPtr = dt->elements[sourceCol]->data;
+
+    // expand the memory of the data table
+    char **updatedDataTableHeaders = realloc(dt->headers, (dataCols + 1) * sizeof(char *));
+    if (updatedDataTableHeaders == NULL)
+    {
+        printf("Error: Failed to realloc for updatedDataTableHeaders!\n");
+        return false;
+    }
+    updatedDataTableHeaders[dataCols] = malloc(strlen(finalNewHeader) + 1);
+    if (updatedDataTableHeaders[dataCols] == NULL)
+    {
+        printf("Error: Failed to malloc for new header!\n");
+        return false;
+    }
+    strcpy(updatedDataTableHeaders[dataCols], finalNewHeader);
+    dt->headers = updatedDataTableHeaders;
+
+    tensor **newElements = realloc(dt->elements, (dataCols + 1) * sizeof(tensor *));
+    if (newElements == NULL)
+    {
+        printf("Error: Failed to realloc for newElements!\n");
+        return false;
+    }
+    int colVectorShape[1] = {dataRows};
+    dt->elements = newElements;
+    dt->elements[dataCols] = createTensor(1, colVectorShape);
+    dataCols++;
+    dt->cols++;
+
+    // apply function to each value in sourceCol
+    // and map them to their corresponding address in the new col
+    double *newDataPtr = dt->elements[dataCols - 1]->data;
+    for (int row = 0; row< dataRows; ++row)
+    {
+        double newVal = function(srcDataPtr[row]);
+        if (isnan(newVal))
+        {
+            printf("Warning: Element at row %i col %i is NAN!", row, dataCols - 1);
+        }
+        newDataPtr[row] = newVal;
+    }
+
+    return true;
+}
 
 // generate data cols via polynomial expansion
-bool dataTable_polynomialExpandInPlace(dataTable *dt, size_t targetCol, int degree); // TODO
+bool dataTable_polynomialExpandInPlace(dataTable *dt, size_t targetCol, int degree)
+{
+    if (dt == NULL)
+    {
+        printf("Error: Cannot expand NULL!\n");
+        return false;
+    }
+    if ((int)targetCol >= dt->cols)
+    {
+        printf("Error: Invalid target col!\n");
+        return false;
+    }
+    if (degree <= 1)
+    {
+        printf("Warning: Input degree is %i, quitting polynomial expansion...", degree);
+        return true;
+    }
+    int dataRows = dt->rows;
+    int dataCols = dt->cols;
+    int toAddCols = degree - 1;
+    double *srcDataPtr = dt->elements[targetCol]->data;
 
-// split data into 2 subsets
-bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2); // TODO
+    // new headers and elements
+    char **updatedHeaders = realloc(dt->headers, (dataCols + toAddCols) * sizeof(char *));
+    if (updatedHeaders == NULL)
+    {
+        printf("Error: Failed to realloc for new headers!\n");
+        return false;
+    }
+    dt->headers = updatedHeaders;
+
+    tensor **updatedElements = realloc(dt->elements, (dataCols + toAddCols) * sizeof(tensor *));
+    if (updatedElements == NULL)
+    {
+        printf("Error: Failed to realloc for new elements!\n");
+        return false;
+    }
+    dt->elements = updatedElements;
+
+    // generate cols with corresponding degree
+    for (int d = 2; d <= degree; ++d)
+    {
+        int currNewColIdx = dataCols + d - 2;
+
+        // new col name
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), "%s^%i", dt->headers[targetCol], d);
+        dt->headers[currNewColIdx] = strdup(buffer);
+
+        // new col vector
+        int shape[1] = {dataRows};
+        dt->elements[currNewColIdx] = createTensor(1, shape);
+        if (dt->elements[currNewColIdx] == NULL)
+        {
+            printf("Error: Failed to create tensor for col %i!\n", currNewColIdx);
+            free(dt->headers[currNewColIdx]);
+            for (int rollback = currNewColIdx - 1; rollback >= dataCols; --rollback)
+            {
+                free(dt->headers[rollback]);
+                destroyTensor(dt->elements[rollback]);
+            }
+            dt->headers = realloc(dt->headers, dataCols * sizeof(char *));
+            dt->elements = realloc(dt->elements, dataCols * sizeof(tensor *));
+
+            return false;
+        }
+
+        double *prevDataPtr = (d == 2) ? srcDataPtr : dt->elements[currNewColIdx - 1]->data;
+        double *currDataPtr = dt->elements[currNewColIdx]->data;
+        for (int row = 0; row < dataRows; ++row)
+        {
+            currDataPtr[row] = prevDataPtr[row] * srcDataPtr[row];
+        }
+    }
+    dt->cols += toAddCols;
+    
+    return true;
+}
 
 // HELPERS
 static inline int cmpDouble(const void *a, const void *b)
