@@ -2,6 +2,7 @@
 #define C_SV_H
 
 #include "tenCor.h"
+#include <stdint.h>
 
 #define MAX_CHARS_PER_LINE 4096
 
@@ -37,6 +38,8 @@ typedef enum {
 // MEMORY
 // ============================================================================
 dataTable *readCSVToDataTable(FILE *src);
+dataTable *createEmptyDataTable(int dataRows, int dataCols);
+dataTable *createDataTable(int dataRows, int dataCols);
 bool writeDataTableToCSV(const dataTable *dt, FILE *dst);
 void destroyDataTable(dataTable *dt);
 
@@ -61,8 +64,14 @@ bool dataTable_polynomialExpandInPlace(dataTable *dt, size_t targetCol, int degr
 // ROUTING AND SPLITTING
 // ============================================================================
 bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2); // TODO
-bool dataTable_shuffle(dataTable *dt); // TODO
-bool dataTable_popColInPlace(dataTable *src, size_t extractCol, dataTable **poppedTarget); // TODO
+bool dataTable_shuffle(dataTable *dt);
+bool dataTable_popColInPlace(dataTable *src, size_t extractCol, dataTable **poppedTarget);
+bool dataTable_transferColInPlace(dataTable *src, size_t extractColIdx, dataTable *dest, size_t insertColIdx); // TODO
 bool dataTable_popCol(const dataTable *src, size_t extractCol, dataTable **remainingTable, dataTable **poppedTarget); // TODO
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+void dataTable_seed(uint32_t seed);
 
 #endif // C_SV_H

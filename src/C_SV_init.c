@@ -1,4 +1,7 @@
 #include "../include/C_SV.h"
+// there will be some copy-and-paste code in here, but I think
+// sometimes they are better than breaking up sections into helper functions
+// in terms of performance (I could very be wrong).
 
 dataTable *readCSVToDataTable(FILE *src)
 {
@@ -165,6 +168,96 @@ dataTable *readCSVToDataTable(FILE *src)
         }
         row++;
     }
+
+    return result;
+}
+
+dataTable *createEmptyDataTable(int dataRows, int dataCols)
+{
+    if (dataRows <= 0 || dataCols <= 0)
+    {
+        printf("Error: Table's rows and cols must be greater than 0!\n");
+        return NULL;
+    }
+
+    dataTable *result = malloc(sizeof(dataTable));
+    if (result == NULL)
+    {
+        printf("Error: Failed to malloc for result!\n");
+        return NULL;
+    }
+    result->headers = calloc(dataCols, sizeof(char *));
+    if (result->headers == NULL)
+    {
+        printf("Error: Failed to calloc for headers!\n");
+        free(result);
+        return NULL;
+    }
+    result->elements = calloc(dataCols, sizeof(tensor *));
+    if (result->elements == NULL)
+    {
+        printf("Error: Failed to calloc for elements!\n");
+        free(result->headers);
+        free(result);
+        return NULL;
+    }
+
+    result->cols = dataCols;
+    result->rows = dataRows;
+
+    return result;
+}
+
+dataTable *createDataTable(int dataRows, int dataCols)
+{
+    if (dataRows <= 0 || dataCols <= 0)
+    {
+        printf("Error: Table's rows and cols must be greater than 0!\n");
+        return NULL;
+    }
+    
+    dataTable *result = malloc(sizeof(dataTable));
+    if (result == NULL)
+    {
+        printf("Error: Failed to malloc for result!\n");
+        return NULL;
+    }
+    result->headers = calloc(dataCols, sizeof(char *));
+    if (result->headers == NULL)
+    {
+        printf("Error: Failed to calloc for headers!\n");
+        free(result);
+        return NULL;
+    }
+    result->elements = calloc(dataCols, sizeof(tensor *));
+    if (result->elements == NULL)
+    {
+        printf("Error: Failed to calloc for elements!\n");
+        free(result->headers);
+        free(result);
+        return NULL;
+    }
+
+    int colVectorShape[1] = {dataRows};
+    for (int col = 0; col < dataCols; ++col)
+    {
+        result->elements[col] = createTensor(1, colVectorShape);
+        if (result->elements[col] == NULL)
+        {
+            printf("Error: Failed to create a column vector at column index %d!\n", col);
+            for (int rollbackCol = col - 1; rollbackCol >= 0; --rollbackCol)
+            {
+                destroyTensor(result->elements[rollbackCol]);
+            }
+            free(result->elements);
+            free(result->headers);
+            free(result);
+            return NULL;
+        }
+    }
+
+    result->cols = dataCols;
+    result->rows = dataRows;
 
     return result;
 }

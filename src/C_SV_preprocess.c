@@ -1,8 +1,4 @@
 #include "../include/C_SV.h"
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-
 // there will be some copy-and-paste code in here, but I think
 // sometimes they are better than breaking up sections into helper functions
 // in terms of performance (I could very be wrong).
