@@ -198,7 +198,6 @@ bool dataTable_transferColInPlace(dataTable *src, dataTable *dest, size_t extrac
         printf("Error: Failed to realloc headers for destination table!\n");
         return false;
     }
-
     tensor **newDestElements = realloc(dest->elements, (dest->cols + 1) * sizeof(tensor *));
     if (newDestElements == NULL)
     {
@@ -263,6 +262,7 @@ bool dataTable_popCol(const dataTable *src, size_t extractCol, dataTable **remai
         *remainingTable = createEmptyDataTable(srcDataRows, remainDataCols);
         if (*remainingTable == NULL)
         {
+            printf("Error: Failed to create remainingTable!\n");
             destroyDataTable(*poppedTarget);
             return false;
         }
