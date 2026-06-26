@@ -107,5 +107,6 @@ bool tensorSumByAxisInPlace(tensor *ten, int axis);
 bool tensorMaxByAxisInPlace(tensor *ten, int axis);
 bool tensorArgmaxInPlace(tensor *ten, int axis);
 bool tensorAddScalarInPlace(tensor *ten, double scalar);
+bool tensorAddInPlace(tensor *replaceTen, const tensor *constTen, bool isAdd);
 
 #endif
