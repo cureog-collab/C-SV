@@ -23,15 +23,19 @@ OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/$(SRC_DIR)/%.o, $(SRCS))
 TEST_OBJS = $(patsubst $(TEST_DIR)/%.c, $(OBJ_DIR)/$(TEST_DIR)/%.o, $(TEST_SRCS))
 
 TARGET = $(BIN_DIR)/run_dataframe
+LIB_TARGET = lib/libc_sv.a
 
 .PHONY: all clean run directories
 
-all: directories $(TARGET)
+all: directories $(TARGET) $(LIB_TARGET)
 
 directories:
 	@mkdir -p $(OBJ_DIR)/$(SRC_DIR)
 	@mkdir -p $(OBJ_DIR)/$(TEST_DIR)
 	@mkdir -p $(BIN_DIR)
+
+$(LIB_TARGET): $(OBJS)
+	ar rcs $@ $^
 
 $(TARGET): $(OBJS) $(TEST_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)

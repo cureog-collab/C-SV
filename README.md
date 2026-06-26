@@ -6,7 +6,7 @@ To build a `.csv` file manipulator for a future machine learning project.
 
 # Directory Structure
 * `lib/`
-  Contains static library `libtenCor.a`.
+  Contains static library `libtenCor.a` and `libc_sv.a`.
 * `include/`
   Contains header files `tenCor.h` and `C_SV.h`,  defining `struct dataTable` data structure and declaring function prototypes.
 * `src/`
