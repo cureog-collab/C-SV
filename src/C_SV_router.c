@@ -9,7 +9,94 @@ static inline uint32_t randUint32();
 static inline uint32_t lemireRand(uint32_t range);
 
 // split data into 2 subsets
-bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2); // TODO
+bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2)
+{
+    if (src == NULL)
+    {
+        printf("Error: Cannot split NULL!\n");
+        return false;
+    }
+    if (ratio <= 0 || ratio >= 1)
+    {
+        printf("Error: Ratio must be a float between 0 and 1.0!\n");
+        return false;
+    }
+    if (set1 == NULL || set2 == NULL)
+    {
+        printf("Error: Cannot split into NULL!\n");
+        return false;
+    }
+    int srcDataRows = src->rows;
+    int srcDataCols = src->cols;
+
+    int set1DataRows = (int)(srcDataRows * ratio);
+    int set2DataRows = srcDataRows - set1DataRows;
+
+    *set1 = createEmptyDataTable(set1DataRows,srcDataCols);
+    if (*set1 == NULL)
+    {
+        printf("Error: Failed to create set1 dataTable!\n");
+        return false;
+    }
+    *set2 = createEmptyDataTable(set2DataRows, srcDataCols);
+    if (*set2 == NULL)
+    {
+        printf("Error: Failed to create set2 dataTable!\n");
+        destroyDataTable(*set1);
+        return false;
+    }
+
+    int shape1[1] = {set1DataRows};
+    int shape2[1] = {set2DataRows};
+
+    for (int col = 0; col < srcDataCols; ++col)
+    {
+        // fill headers
+        (*set1)->headers[col] = strdup(src->headers[col]);
+        if ((*set1)->headers[col] == NULL)
+        {
+            printf("Error: Failed to duplicate for headers at col %i of set1!\n", col);
+            destroyDataTable(*set1);
+            destroyDataTable(*set2);
+            return false;
+        }
+        (*set2)->headers[col] = strdup(src->headers[col]);
+        if ((*set2)->headers[col] == NULL)
+        {
+            printf("Error: Failed to duplicate for headers at col %i of set2!\n", col);
+            destroyDataTable(*set1);
+            destroyDataTable(*set2);
+            return false;
+        }
+
+        // fill elements
+        (*set1)->elements[col] = createTensor(1, shape1);
+        if ((*set1)->elements[col] == NULL)
+        {
+            printf("Error: Failed to create tensor for set1 elements at col %i!\n", col);
+            destroyDataTable(*set1);
+            destroyDataTable(*set2);
+            return false;            
+        }
+        (*set2)->elements[col] = createTensor(1, shape2);
+        if ((*set2)->elements[col] == NULL)
+        {
+            printf("Error: Failed to create tensor for set2 elements at col %i!\n", col);
+            destroyDataTable(*set1);
+            destroyDataTable(*set2);
+            return false;            
+        }
+
+        double *srcDataPtr  = src->elements[col]->data;
+        double *set1DataPtr = (*set1)->elements[col]->data;
+        double *set2DataPtr = (*set2)->elements[col]->data;
+
+        memcpy(set1DataPtr, srcDataPtr, set1DataRows * sizeof(double));
+        memcpy(set2DataPtr, srcDataPtr + set1DataRows, set2DataRows * sizeof(double));
+    }
+
+    return true;
+}
 
 bool dataTable_shuffle(dataTable *dt)
 {
@@ -40,7 +127,6 @@ bool dataTable_shuffle(dataTable *dt)
 
     return true;
 }
-
 
 bool dataTable_popColInPlace(dataTable *src, size_t extractCol, dataTable **poppedTarget)
 {
@@ -82,9 +168,146 @@ bool dataTable_popColInPlace(dataTable *src, size_t extractCol, dataTable **popp
     return true;
 }
 
-bool dataTable_transferColInPlace(dataTable *src, size_t extractColIdx, dataTable *dest, size_t insertColIdx); // TODO
+bool dataTable_transferColInPlace(dataTable *src, dataTable *dest, size_t extractColIdx, size_t insertColIdx)
+{
+    if (src == NULL || dest == NULL)
+    {
+        printf("Error: Cannot transfer col with NULL!\n");
+        return false;
+    }
+    if ((int)extractColIdx >= src->cols)
+    {
+        printf("Error: Invalid extractColIdx!\n");
+        return false;
+    }
+    if ((int)insertColIdx > dest->cols)
+    {
+        printf("Error: Invalid insertColIdx!\n");
+        return false;
+    }
+    if (src->rows != dest->rows)
+    {
+        printf("Error: Tables must have the same number of rows to transfer columns!\n");
+        return false;
+    }
 
-bool dataTable_popCol(const dataTable *src, size_t extractCol, dataTable **remainingTable, dataTable **poppedTarget); // TODO
+    // expand memory of dest
+    char **newDestHeaders = realloc(dest->headers, (dest->cols + 1) * sizeof(char *));
+    if (newDestHeaders == NULL)
+    {
+        printf("Error: Failed to realloc headers for destination table!\n");
+        return false;
+    }
+
+    tensor **newDestElements = realloc(dest->elements, (dest->cols + 1) * sizeof(tensor *));
+    if (newDestElements == NULL)
+    {
+        printf("Error: Failed to realloc elements for destination table!\n");
+        free(newDestHeaders);
+        return false;
+    }
+    dest->headers = newDestHeaders;
+    dest->elements = newDestElements;
+
+    // insertCol
+    size_t destShiftCount = dest->cols - insertColIdx;
+    if (destShiftCount > 0)
+    {
+        memmove(&dest->headers[insertColIdx + 1], &dest->headers[insertColIdx], destShiftCount * sizeof(char *));
+        memmove(&dest->elements[insertColIdx + 1], &dest->elements[insertColIdx], destShiftCount * sizeof(tensor *));
+    }
+
+    dest->headers[insertColIdx] = src->headers[extractColIdx];
+    dest->elements[insertColIdx] = src->elements[extractColIdx];
+    dest->cols++;
+
+    size_t srcShiftCount = src->cols - 1 - extractColIdx;
+    if (srcShiftCount > 0)
+    {
+        memmove(&src->headers[extractColIdx], &src->headers[extractColIdx + 1], srcShiftCount * sizeof(char *));
+        memmove(&src->elements[extractColIdx], &src->elements[extractColIdx + 1], srcShiftCount * sizeof(tensor *));
+    }
+
+    src->cols--;
+    src->headers[src->cols] = NULL;
+    src->elements[src->cols] = NULL;
+
+    return true;
+}
+
+bool dataTable_popCol(const dataTable *src, size_t extractCol, dataTable **remainingTable, dataTable **poppedTarget)
+{
+    if (src == NULL || remainingTable == NULL || poppedTarget == NULL)
+    {
+        printf("Error: Cannot perform popCol on NULL!\n");
+        return false;
+    }
+    if ((int)extractCol >= src->cols)
+    {
+        printf("Error: Invalid extractCol!\n");
+        return false;
+    }
+    int srcDataRows = src->rows;
+    int srcDataCols = src->cols;
+    int remainDataCols = srcDataCols - 1;
+
+    *poppedTarget = createEmptyDataTable(srcDataRows, 1);
+    if (*poppedTarget == NULL)
+    {
+        printf("Error: Failed to create poppedTarget!\n");
+        return false;
+    }
+
+    if (remainDataCols > 0)
+    {
+        *remainingTable = createEmptyDataTable(srcDataRows, remainDataCols);
+        if (*remainingTable == NULL)
+        {
+            destroyDataTable(*poppedTarget);
+            return false;
+        }
+    }
+    else
+    {
+        *remainingTable = NULL; 
+    }
+
+    int shape[1] = {srcDataRows};
+
+    (*poppedTarget)->headers[0] = strdup(src->headers[extractCol]);
+    (*poppedTarget)->elements[0] = createTensor(1, shape);
+    if ((*poppedTarget)->headers[0] == NULL || (*poppedTarget)->elements[0] == NULL)
+    {
+        destroyDataTable(*poppedTarget);
+        if (*remainingTable != NULL) destroyDataTable(*remainingTable);
+        return false;
+    }
+    memcpy((*poppedTarget)->elements[0]->data, src->elements[extractCol]->data, srcDataRows * sizeof(double));
+
+    if (remainDataCols > 0)
+    {
+        int destCol = 0;
+        for (int srcCol = 0; srcCol < srcDataCols; ++srcCol)
+        {
+            if (srcCol == (int)extractCol) continue;
+
+            (*remainingTable)->headers[destCol] = strdup(src->headers[srcCol]);
+            (*remainingTable)->elements[destCol] = createTensor(1, shape);
+
+            if ((*remainingTable)->headers[destCol] == NULL || (*remainingTable)->elements[destCol] == NULL)
+            {
+                destroyDataTable(*remainingTable);
+                destroyDataTable(*poppedTarget);
+                return false;
+            }
+
+            memcpy((*remainingTable)->elements[destCol]->data, src->elements[srcCol]->data, srcDataRows * sizeof(double));
+            destCol++;
+        }
+    }
+
+    return true;
+}
 
 // HERLPERS
 

@@ -63,11 +63,11 @@ bool dataTable_polynomialExpandInPlace(dataTable *dt, size_t targetCol, int degr
 // ============================================================================
 // ROUTING AND SPLITTING
 // ============================================================================
-bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2); // TODO
+bool dataTable_split2(const dataTable *src, float ratio, dataTable **set1, dataTable **set2);
 bool dataTable_shuffle(dataTable *dt);
 bool dataTable_popColInPlace(dataTable *src, size_t extractCol, dataTable **poppedTarget);
-bool dataTable_transferColInPlace(dataTable *src, size_t extractColIdx, dataTable *dest, size_t insertColIdx); // TODO
-bool dataTable_popCol(const dataTable *src, size_t extractCol, dataTable **remainingTable, dataTable **poppedTarget); // TODO
+bool dataTable_transferColInPlace(dataTable *src, dataTable *dest, size_t extractColIdx , size_t insertColIdx);
+bool dataTable_popCol(const dataTable *src, size_t extractCol, dataTable **remainingTable, dataTable **poppedTarget);
 
 // ============================================================================
 // HELPERS
