@@ -151,7 +151,7 @@ bool dataTable_popColInPlace(dataTable *src, size_t extractCol, dataTable **popp
     *poppedTarget = createEmptyDataTable(srcDataRows, 1);
     if (*poppedTarget == NULL)
     {
-        printf("Error: Failed to create popperTarget!\n");
+        printf("Error: Failed to create poppedTarget!\n");
         return false;
     }
 
