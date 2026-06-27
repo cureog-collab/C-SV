@@ -63,9 +63,10 @@ tensor *tensorTanhDerivative(const tensor *ten);
 // =========================================================================================================
 double tensorMSE(const tensor *predictions, const tensor *labels);
 double tensorCrossEntropy(const tensor *predictions, const tensor *labels);
+double tensorHinge(const tensor *predictions, const tensor *labels);
 
 // =========================================================================================================
-// LINEAR ALGEBRA CORE
+// LINEAR ALGEBRA 
 // =========================================================================================================
 tensor *tensorTranspose(const tensor *ten, const int *axes);
 tensor *tensorInverse(const tensor *ten);
